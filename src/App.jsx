@@ -19,9 +19,9 @@ const CameraControls = () => {
     camera,
     gl: { domElement }
   } = useThree();
-  camera.position.x = 2
-  camera.position.y = 2
-  camera.position.z = 2
+  camera.position.x = 20
+  camera.position.y = 20
+  camera.position.z = 20
 
   // Ref to the controls, so that we can update them on every frame using useFrame
   const controls = useRef();
@@ -73,11 +73,10 @@ const MorsePotential = (epsilon, atoms, alpha, rAlpha, elapsed) => {
     }
     const [xPrev, yPrev, zPrev] = a.previousPosition;
     const [x, y, z] = a.position;
-    console.log(ferrumProperties.TAU);
     const newPosition = [
-      x - xPrev + acc * ferrumProperties.TAU ** 2, 
-      y - yPrev + acc * elapsed ** 2, 
-      z - zPrev + acc * elapsed ** 2
+      2 * x - xPrev + acc * elapsed ** 2, 
+      2 * y - yPrev + acc * elapsed ** 2, 
+      2 * z - zPrev + acc * elapsed ** 2
     ];
     a.previousPosition = structuredClone(a.position);
     a.position = structuredClone(newPosition);
@@ -90,12 +89,27 @@ function Atom({ radius, border, position, idx }) {
   // Subscribe this component to the render-loop, rotate the mesh every frame
   useFrame((state, delta) => {
 
-      const { x, y, z } = ref.current.position;
+      const [x,y,z] = atoms[idx].previousPosition;
       const [newX, newY, newZ] = atoms[idx].position;
+      if (idx === 0) {
+        console.log([newX, newY, newZ]);
+      }
   
-      ref.current.position.x += checkBorder(x, newX - x, border);
-      ref.current.position.y += checkBorder(y, newY - y, border);
-      ref.current.position.z += checkBorder(z, newZ - z, border);
+      if (newX > border || newX < -border) {
+        atoms[idx].previousPosition[0] = newX;
+        atoms[idx].position[0] = x;
+      }
+      if (newY > border || newY < -border) {
+        atoms[idx].previousPosition[1] = newY;
+        atoms[idx].position[1] = y;
+      }
+      if (newZ > border || newZ < -border) {
+        atoms[idx].previousPosition[2] = newZ;
+        atoms[idx].position[2] = z;
+      }
+      ref.current.position.x = atoms[idx].position[0];
+      ref.current.position.y = atoms[idx].position[1];
+      ref.current.position.z = atoms[idx].position[2];
   });
   // Return the view, these are regular Threejs elements expressed in JSX
   return (
@@ -125,10 +139,12 @@ function Box(props) {
   )
 }
 
-function AtomsHolder() {
+function AtomsHolder({shouldCalculate}) {
   const boxBorder = boxGeometry[0] / 2;
 
+  setInterval
   useFrame((state, elapsed) => {
+    if (shouldCalculate)
     MorsePotential(ferrumProperties.epsilon, atoms, ferrumProperties.alpha, ferrumProperties.r, elapsed);
   });
 
@@ -152,14 +168,23 @@ function AtomsHolder() {
 }
 
 function App() {
+  const [shouldCalculate, setshouldCalculate] = useState(true);
+
+  const handleKey = (event) => {
+    console.log(event.key, event.keyCode)
+    if (event.keyCode === 13) {
+      setshouldCalculate(!shouldCalculate);
+    }
+  }
+  document.addEventListener('keypress', handleKey);
   return (
-    <Canvas style={{ height: '50%', width: '50%', background: 'white', margin: 'auto', top: '25%' }} >
+    <Canvas style={{ height: '50%', width: '50%', background: 'white', margin: 'auto', top: '25%' }}>
       <PerformanceMonitor />
       <CameraControls />
       <ambientLight />
       <pointLight position={[10, 10, 10]} />
       <Box position={[0, 0, 0]} size={boxGeometry} />
-      <AtomsHolder />
+      <AtomsHolder shouldCalculate={shouldCalculate}/>
     </Canvas>
   )
 }
