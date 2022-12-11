@@ -2,10 +2,10 @@ import { createRoot } from 'react-dom/client'
 import React, { useRef, useState } from 'react'
 import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { randFloat, randInt } from 'three/src/math/MathUtils'
+import { randFloat } from 'three/src/math/MathUtils'
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
-import { atomRadius, sphere, material, boxMaterial, ferrumProperties, numAtoms, boxGeometry } from './constants/constants';
+import { atomRadius, sphere, material, boxMaterial, ferrumProperties, numAtoms, boxGeometry, cameraPos } from './constants/constants';
 
 
 extend({ OrbitControls });
@@ -19,9 +19,9 @@ const CameraControls = () => {
     camera,
     gl: { domElement }
   } = useThree();
-  camera.position.x = 20
-  camera.position.y = 20
-  camera.position.z = 20
+  camera.position.x = cameraPos[0];
+  camera.position.y = cameraPos[1];
+  camera.position.z = cameraPos[2];
 
   // Ref to the controls, so that we can update them on every frame using useFrame
   const controls = useRef();
@@ -57,29 +57,61 @@ const atoms = [];
 const Morse = (epsilon, alpha, r, rAlpha) => {
   return epsilon * (Math.exp(-2 * alpha * (r - rAlpha)) - 2 * Math.exp(-alpha * (r - rAlpha)))
 }
+
+const firstDerivativeMorse = (epsilon, alpha, r, rAlpha) => {
+  return Math.sign(r) * epsilon * (-2 * alpha * Math.exp(-2 * alpha * (r - rAlpha)) + 2 * alpha * Math.exp(-alpha * (r - rAlpha)));
+}
+
 const secondDerivativeMorse = (epsilon, alpha, r, rAlpha) => {
-  return epsilon * (4 * Math.pow(alpha, 2) * Math.exp(-2 * alpha * (r - rAlpha)) - 2 * Math.pow(alpha, 2) * Math.exp(-alpha * (r - rAlpha)));
+  return Math.sign(r) * epsilon * (4 * Math.pow(alpha, 2) * Math.exp(-2 * alpha * (r - rAlpha)) - 2 * Math.pow(alpha, 2) * Math.exp(-alpha * (r - rAlpha)));
 }
 
 const MorsePotential = (epsilon, atoms, alpha, rAlpha, elapsed) => {
   atoms.forEach((a, idx) => {
-    let acc = 0;
+    let accX = 0;
+    let accY = 0;
+    let accZ = 0;
     for (let i = 0; i < numAtoms; i++) {
       if (i === idx) continue;
       const [x1, y1, z1] = a.position;
       const [x2, y2, z2] = atoms[i].position;
-      const r = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2) + Math.pow(z1 - z2, 2));
-      acc += secondDerivativeMorse(epsilon, alpha, r * 10 ** -10, rAlpha);
+      // const r = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2) + Math.pow(z1 - z2, 2));
+      accX += secondDerivativeMorse(epsilon, alpha, (Math.abs(x2 - x1)) * 10 ** -10, rAlpha);
+      accY += secondDerivativeMorse(epsilon, alpha, (Math.abs(y2 - y1)) * 10 ** -10, rAlpha);
+      accZ += secondDerivativeMorse(epsilon, alpha, (Math.abs(z2 - z1)) * 10 ** -10, rAlpha);
     }
     const [xPrev, yPrev, zPrev] = a.previousPosition;
     const [x, y, z] = a.position;
     const newPosition = [
-      2 * x - xPrev + acc * elapsed ** 2, 
-      2 * y - yPrev + acc * elapsed ** 2, 
-      2 * z - zPrev + acc * elapsed ** 2
+      2 * x - xPrev + accX * elapsed ** 2, 
+      2 * y - yPrev + accY * elapsed ** 2, 
+      2 * z - zPrev + accZ * elapsed ** 2
     ];
+    a.acc = [accX, accY, accZ];
     a.previousPosition = structuredClone(a.position);
     a.position = structuredClone(newPosition);
+  })
+}
+
+const MorseTension = (epsilon, atoms, alpha, rAlpha, elapsed) => {
+  atoms.forEach((a, idx) => {
+    let tX = 0;
+    let tY = 0;
+    let tZ = 0;
+    for (let i = 0; i < numAtoms; i++) {
+      if (i === idx) continue;
+      const [x1, y1, z1] = a.position;
+      const [x2, y2, z2] = atoms[i].position;
+      // const r = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2) + Math.pow(z1 - z2, 2));
+      tX += firstDerivativeMorse(epsilon, alpha, (Math.abs(x2 - x1)) * 10 ** -10, rAlpha);
+      tY += firstDerivativeMorse(epsilon, alpha, (Math.abs(y2 - y1)) * 10 ** -10, rAlpha);
+      tZ += firstDerivativeMorse(epsilon, alpha, (Math.abs(z2 - z1)) * 10 ** -10, rAlpha);
+    }
+
+    const [x1, y1, z1] = a.position;
+    const r = Math.sqrt(Math.pow(x1, 2) + Math.pow(y1, 2) + Math.pow(z1, 2));
+    const coef = boxGeometry[0] ** 3 * 2.78  * 10 ** -10 * 10**-6 * 10**-6 * 10**-6
+    a.tension = [tX, tY, tZ].map(e => 0.5 / coef * e * x1 * y1 * z1 / r);
   })
 }
 
@@ -91,10 +123,6 @@ function Atom({ radius, border, position, idx }) {
 
       const [x,y,z] = atoms[idx].previousPosition;
       const [newX, newY, newZ] = atoms[idx].position;
-      if (idx === 0) {
-        console.log([newX, newY, newZ]);
-      }
-  
       if (newX > border || newX < -border) {
         atoms[idx].previousPosition[0] = newX;
         atoms[idx].position[0] = x;
@@ -118,7 +146,7 @@ function Atom({ radius, border, position, idx }) {
       ref={ref}
       scale={1}
       geometry={sphere}
-      material={material}
+      material={material[idx]}
     />
   )
 }
@@ -142,11 +170,19 @@ function Box(props) {
 function AtomsHolder({shouldCalculate}) {
   const boxBorder = boxGeometry[0] / 2;
 
-  setInterval
   useFrame((state, elapsed) => {
     if (shouldCalculate)
-    MorsePotential(ferrumProperties.epsilon, atoms, ferrumProperties.alpha, ferrumProperties.r, elapsed);
+    MorsePotential(ferrumProperties.epsilon, atoms, ferrumProperties.alpha, ferrumProperties.r, elapsed * 10000000);
+    MorseTension(ferrumProperties.epsilon, atoms, ferrumProperties.alpha, ferrumProperties.r, elapsed * 10000000);
   });
+
+  setInterval(() => {
+    const k = 42;
+    console.log(`Position ${k + 1}`, atoms[k].position.map(e => e * 10 ** -10));
+    console.log(`Speed ${k + 1}`, atoms[k].position.map((e, idx) => (e - atoms[42].previousPosition[idx]) * 10 ** -10));
+    console.log(`Acceleration ${k + 1}`, atoms[k].acc);
+    console.log(`Tension ${k + 1}`,  atoms[k].tension);
+  }, 1000);
 
   return (
     <>
@@ -182,7 +218,6 @@ function App() {
       <PerformanceMonitor />
       <CameraControls />
       <ambientLight />
-      <pointLight position={[10, 10, 10]} />
       <Box position={[0, 0, 0]} size={boxGeometry} />
       <AtomsHolder shouldCalculate={shouldCalculate}/>
     </Canvas>

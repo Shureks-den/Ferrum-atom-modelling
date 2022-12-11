@@ -1,18 +1,23 @@
 import * as THREE from 'three'
-
+import { randInt } from 'three/src/math/MathUtils'
 
 export const atomRadius = 0.5;
 
-export const numAtoms = 1000;
+export const numAtoms = 100;
 
 export const boxGeometry = [50, 50, 50];
+
+export const cameraPos = boxGeometry.map(v => v+ 10);
 
 
 export const sphere = new THREE.SphereGeometry(atomRadius, 28, 28);
 
-export const material = new THREE.MeshStandardMaterial({
-  color: 'blue',
-});
+export const material = [...Array(numAtoms).keys()].map(i => (
+  new THREE.MeshStandardMaterial({
+    color: `rgb(${randInt(0, 255)}, ${randInt(0, 255)}, ${randInt(0, 255)})`,
+    // color: "blue"
+  })
+));
 
 export const boxMaterial = new THREE.MeshPhysicalMaterial({
   reflectivity: 0,
