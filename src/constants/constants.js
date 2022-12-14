@@ -1,16 +1,33 @@
 import * as THREE from 'three'
 import { randInt } from 'three/src/math/MathUtils'
 
-export const atomRadius = 0.5;
-
-export const numAtoms = 100;
-
-export const boxGeometry = [50, 50, 50];
-
-export const cameraPos = boxGeometry.map(v => v+ 10);
 
 
-export const sphere = new THREE.SphereGeometry(atomRadius, 28, 28);
+
+
+export const GRID_SIZE = 5;
+export const numAtoms = GRID_SIZE ** 3;
+export const INI_DIST = 1 * 10**-16;
+export const INI_PAD = INI_DIST;
+export const INI_SPD = 1 * 10**-18;
+
+export const boxSize = GRID_SIZE * INI_DIST + 2 * INI_PAD;
+
+export const atom2Vert = (a) => {
+  return a / boxSize - 0.5;
+}
+
+export const vert2Atom = (v) => {
+  return (v + 0.5) * boxSize;
+}
+
+export const boxGeometry = [1, 1, 1];
+
+export const atomRadius = atom2Vert(boxSize) / 50;
+
+export const cameraPos = boxGeometry.map(v => v);
+
+export const sphere = new THREE.SphereGeometry(atomRadius, 14, 14);
 
 export const material = [...Array(numAtoms).keys()].map(i => (
   new THREE.MeshStandardMaterial({
