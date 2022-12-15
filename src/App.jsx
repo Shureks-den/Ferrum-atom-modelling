@@ -1,4 +1,3 @@
-import { createRoot } from 'react-dom/client'
 import React, { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, extend, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
@@ -6,8 +5,8 @@ import { randFloat } from 'three/src/math/MathUtils'
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 import {
-  atomRadius, atom2Vert, vert2Atom, sphere, material, boxMaterial, ferrumProperties,
-  numAtoms, boxGeometry, cameraPos, boxSize, GRID_SIZE, INI_DIST, INI_PAD, INI_SPD
+  atomRadius, atom2Vert, vert2Atom, sphere, box, material, boxMaterial, ferrumProperties,
+  numAtoms, boxGeometry, cameraPos, boxSize, gridSize, iniDist, iniPad, iniSpd, whiteMaterial
 } from './constants/constants';
 
 
@@ -39,37 +38,26 @@ const CameraControls = () => {
   );
 };
 
-
-function checkBorder(coord, variation, border) {
-  if (coord + variation <= -border && variation < 0) {
-    return Math.abs(variation);
-  } else if (coord + variation >= border && variation > 0) {
-    return -1 * variation;
-  }
-  return variation;
-}
-
 const atoms = [];
-for (let i = 0; i < GRID_SIZE; i++) {
-  for (let j = 0; j < GRID_SIZE; j++) {
-    for (let k = 0; k < GRID_SIZE; k++) {
+for (let i = 0; i < gridSize; i++) {
+  for (let j = 0; j < gridSize; j++) {
+    for (let k = 0; k < gridSize; k++) {
       atoms.push({
-        position: [i * GRID_SIZE / (GRID_SIZE - 1) * INI_DIST + INI_PAD, j * GRID_SIZE / (GRID_SIZE - 1) * INI_DIST + INI_PAD, k * GRID_SIZE / (GRID_SIZE - 1) * INI_DIST + INI_PAD],
-        previousPosition: [i * GRID_SIZE / (GRID_SIZE - 1) * INI_DIST + INI_PAD, j * GRID_SIZE / (GRID_SIZE - 1) * INI_DIST + INI_PAD, k * GRID_SIZE / (GRID_SIZE - 1) * INI_DIST + INI_PAD],
+        position: [i * gridSize / (gridSize - 1) * iniDist + iniPad, j * gridSize / (gridSize - 1) * iniDist + iniPad, k * gridSize / (gridSize - 1) * iniDist + iniPad],
+        previousPosition: [i * gridSize / (gridSize - 1) * iniDist + iniPad, j * gridSize / (gridSize - 1) * iniDist + iniPad, k * gridSize / (gridSize - 1) * iniDist + iniPad],
       })
     }
   }
 }
 
-for (let i = 0; i < GRID_SIZE ** 3; i++) {
-  const xDelta = (1 - 2 * randFloat(0, 0.5)) * INI_SPD;
-  const yDelta = (1 - 2 * randFloat(0, 0.5)) * INI_SPD;
-  const zDelta = (1 - 2 * randFloat(0, 0.5)) * INI_SPD;
+for (let i = 0; i < gridSize ** 3; i++) {
+  const xDelta = (1 - 2 * randFloat(0, 0.5)) * iniSpd;
+  const yDelta = (1 - 2 * randFloat(0, 0.5)) * iniSpd;
+  const zDelta = (1 - 2 * randFloat(0, 0.5)) * iniSpd;
 
   atoms[i].previousPosition[0] += i % 2 === 0 ? xDelta : - xDelta;
   atoms[i].previousPosition[1] += i % 2 === 0 ? yDelta : - yDelta;
   atoms[i].previousPosition[2] += i % 2 === 0 ? zDelta : - zDelta;
-
 }
 
 const Morse = (epsilon, alpha, r, rAlpha) => {
@@ -78,7 +66,7 @@ const Morse = (epsilon, alpha, r, rAlpha) => {
 
 const firstDerivativeMorse = (epsilon, alpha, r, rLength, rAlpha) => {
   return r /
-  (rLength + 10 ** -100) * epsilon * (-2 * alpha * Math.exp(-2 * alpha * (r - rAlpha)) + 2 * alpha * Math.exp(-alpha * (r - rAlpha)));
+    (rLength + 10 ** -100) * epsilon * (-2 * alpha * Math.exp(-2 * alpha * (r - rAlpha)) + 2 * alpha * Math.exp(-alpha * (r - rAlpha)));
 }
 
 const secondDerivativeMorse = (epsilon, alpha, r, rLength, rAlpha) => {
@@ -108,8 +96,8 @@ const MorsePotential = (epsilon, atoms, alpha, rAlpha, elapsed) => {
       2 * z - zPrev + accZ * elapsed ** 2
     ];
     a.acc = [accX, accY, accZ];
-    a.previousPosition = structuredClone(a.position);
-    a.position = structuredClone(newPosition);
+    a.previousPosition = a.position;
+    a.position = newPosition;
   })
 }
 
@@ -123,9 +111,9 @@ const MorseTension = (epsilon, atoms, alpha, rAlpha, elapsed) => {
       const [x1, y1, z1] = a.position;
       const [x2, y2, z2] = atoms[i].position;
       const r = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2) + Math.pow(z1 - z2, 2));
-      tX += firstDerivativeMorse(epsilon, alpha, x1-x2, r, rAlpha);
-      tY += firstDerivativeMorse(epsilon, alpha, y1-y2, r, rAlpha);
-      tZ += firstDerivativeMorse(epsilon, alpha, z1-z2, r, rAlpha);
+      tX += firstDerivativeMorse(epsilon, alpha, x1 - x2, r, rAlpha);
+      tY += firstDerivativeMorse(epsilon, alpha, y1 - y2, r, rAlpha);
+      tZ += firstDerivativeMorse(epsilon, alpha, z1 - z2, r, rAlpha);
     }
 
     const [x1, y1, z1] = a.position;
@@ -135,7 +123,7 @@ const MorseTension = (epsilon, atoms, alpha, rAlpha, elapsed) => {
   })
 }
 
-function Atom({ radius, border, position, idx }) {
+function Atom({ radius, border, position, idx, setTrack, tracked }) {
   // This reference gives us direct access to the THREE.Mesh object
   const ref = useRef()
   // Subscribe this component to the render-loop, rotate the mesh every frame
@@ -163,17 +151,16 @@ function Atom({ radius, border, position, idx }) {
     <mesh
       position={position}
       ref={ref}
-      scale={1}
+      scale={tracked ? 2 : 1}
       geometry={sphere}
       material={material[idx]}
+      onClick={() => setTrack(idx)}
     />
   )
 }
 
 function Box(props) {
   const ref = useRef()
-  // Subscribe this component to the render-loop, rotate the mesh every frame
-  // Return the view, these are regular Threejs elements expressed in JSX
   return (
     <mesh
       {...props}
@@ -186,33 +173,75 @@ function Box(props) {
   )
 }
 
-function AtomsHolder({ shouldCalculate }) {
+function Trajectory(props) {
+  const ref = useRef();
 
+  useFrame((state, elapsed) => {
+    const [x, y, z] = props.position;
+    ref.current.position.x = x;
+    ref.current.position.y = y;
+    ref.current.position.z = z;
+  });
+
+  return (
+    <mesh
+      {...props}
+      ref={ref}
+      material={whiteMaterial}
+      scale={1}
+    >
+      <boxGeometry args={[atomRadius, atomRadius, atomRadius]} />
+    </mesh>
+  )
+}
+
+function AtomsHolder({ shouldCalculate }) {
   const [simTime, setSimTime] = useState(0);
   const [realTime, setRealTime] = useState(0);
   const [itr, setItr] = useState(0);
+  const [k, setK] = useState(42);
+
   useFrame((state, elapsed) => {
     if (shouldCalculate) {
       MorsePotential(ferrumProperties.epsilon, atoms, ferrumProperties.alpha, ferrumProperties.r, ferrumProperties.TAU);
       MorseTension(ferrumProperties.epsilon, atoms, ferrumProperties.alpha, ferrumProperties.r, elapsed);
     }
-    
     setSimTime(simTime + ferrumProperties.TAU);
     setRealTime(realTime + elapsed);
-    
   });
 
   useEffect(() => {
-    if (realTime / 5> itr) {
+    if (realTime / 5 > itr) {
       setItr(itr + 1);
-      const k = 42;
       console.log('Simulation Time =', simTime);
       console.log('Real Time =', realTime);
       console.log(`Position ${k + 1}`, atoms[k].position.map(e => e));
-      console.log(`Speed ${k + 1}`, atoms[k].position.map((e, idx) => (e - atoms[42].previousPosition[idx])));
+      console.log(`Speed ${k + 1}`, atoms[k].position.map((e, idx) => (e - atoms[k].previousPosition[idx])));
       console.log(`Acceleration ${k + 1}`, atoms[k].acc);
       console.log(`Tension ${k + 1}`, atoms[k].tension);
-      console.log('alpha = ', randFloat(4.9 / 3.1, 5.1 / 2.9))
+
+      const speed = atoms.reduce((prev, next) => {
+        return [
+          prev[0] + next.position[0] - next.previousPosition[0],
+          prev[1] + next.position[1] - next.previousPosition[1],
+          prev[2] + next.position[2] - next.previousPosition[2],
+        ]
+      }, [0, 0, 0]);
+
+      const speedNormSum = atoms.reduce((prev, next) => {
+        return prev + Math.sqrt(
+          (next.position[0] - next.previousPosition[0]) ** 2 +
+          (next.position[1] - next.previousPosition[1]) ** 2 +
+          (next.position[2] - next.previousPosition[2]) ** 2
+        ) ** 2;
+      }, 0);
+
+      const energy = 0.5 * ferrumProperties.m * speedNormSum;
+      const alpha = (speedNormSum / numAtoms) / (speedNormSum / numAtoms) ** 2
+
+      console.log('Kinetic energy', energy);
+      console.log('sum speed', speed);
+      console.log('alpha', alpha)
       console.log('\n\n');
     }
   }, [realTime]);
@@ -227,7 +256,9 @@ function AtomsHolder({ shouldCalculate }) {
               idx={idx}
               position={i.position}
               border={boxSize}
-              radius={atomRadius}
+              radius={vert2Atom(atomRadius)}
+              setTrack={setK}
+              tracked={k === idx}
             />
           )
         })
@@ -239,14 +270,13 @@ function AtomsHolder({ shouldCalculate }) {
 function App() {
   const [shouldCalculate, setshouldCalculate] = useState(true);
   const handleKey = (event) => {
-    console.log(event.key, event.keyCode)
     if (event.keyCode === 13) {
       setshouldCalculate(!shouldCalculate);
     }
   }
   document.addEventListener('keypress', handleKey);
   return (
-    <Canvas style={{ height: '50%', width: '50%', background: 'white', top: '25%', margin: 'auto' }}>
+    <Canvas style={{ background: 'white' }}>
       <PerformanceMonitor />
       <CameraControls />
       <ambientLight />

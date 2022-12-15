@@ -2,16 +2,13 @@ import * as THREE from 'three'
 import { randInt } from 'three/src/math/MathUtils'
 
 
+export const gridSize = 5;
+export const numAtoms = gridSize ** 3;
+export const iniDist = 1 * 10**-16;
+export const iniPad = iniDist;
+export const iniSpd = 1 * 10**-18;
 
-
-
-export const GRID_SIZE = 5;
-export const numAtoms = GRID_SIZE ** 3;
-export const INI_DIST = 1 * 10**-16;
-export const INI_PAD = INI_DIST;
-export const INI_SPD = 1 * 10**-18;
-
-export const boxSize = GRID_SIZE * INI_DIST + 2 * INI_PAD;
+export const boxSize = gridSize * iniDist + 2 * iniPad;
 
 export const atom2Vert = (a) => {
   return a / boxSize - 0.5;
@@ -29,10 +26,17 @@ export const cameraPos = boxGeometry.map(v => v);
 
 export const sphere = new THREE.SphereGeometry(atomRadius, 14, 14);
 
+export const box = new THREE.BoxGeometry(atomRadius, atomRadius, atomRadius);
+
 export const material = [...Array(numAtoms).keys()].map(i => (
   new THREE.MeshStandardMaterial({
     color: `rgb(${randInt(0, 255)}, ${randInt(0, 255)}, ${randInt(0, 255)})`,
-    // color: "blue"
+  })
+));
+
+export const whiteMaterial = [...Array(numAtoms).keys()].map(i => (
+  new THREE.MeshStandardMaterial({
+    color: 'white',
   })
 ));
 
